@@ -1,8 +1,8 @@
 import Foundation
+import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
 
 /// A protocol that defines an interface to generate the `DependenciesGraph` for the `Carthage` dependencies.
@@ -26,26 +26,26 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
             .flatMap { $0.allProducts }
 
-        let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(grouping: products, by: \.name)
+        let externalDependencies: [String: [TargetDependency]] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in
                 guard let product = products.first else { return nil }
 
-                if let xcFrameworkName = product.container {
-                    let path = AbsolutePath("/")
-                        .appending(components: [
-                            Constants.tuistDirectoryName,
-                            Constants.DependenciesDirectory.name,
-                            Constants.DependenciesDirectory.carthageDirectoryName,
-                            xcFrameworkName,
-                        ])
-
-                    return .xcframework(path: path)
+                guard let xcframeworkName = product.container else {
+                  logger.info("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
+                  return nil
                 }
 
-                logger.info("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
-                return nil
+                let path = AbsolutePath("/")
+                    .appending(components: [
+                        Constants.tuistDirectoryName,
+                        Constants.DependenciesDirectory.name,
+                        Constants.DependenciesDirectory.carthageDirectoryName,
+                      xcframeworkName,
+                    ])
+
+                return [.xcframework(path: Path(path.pathString))]
             }
 
-        return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
+        return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])
     }
 }

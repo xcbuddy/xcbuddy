@@ -11,13 +11,16 @@ import XCTest
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerInteractor!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var swiftPackageManagerGraphGenerator: MockSwiftPackageManagerGraphGenerator!
 
     override func setUp() {
         super.setUp()
 
         swiftPackageManagerController = MockSwiftPackageManagerController()
+        swiftPackageManagerGraphGenerator = MockSwiftPackageManagerGraphGenerator()
         subject = SwiftPackageManagerInteractor(
-            swiftPackageManagerController: swiftPackageManagerController
+            swiftPackageManagerController: swiftPackageManagerController,
+            swiftPackageManagerGraphGenerator: swiftPackageManagerGraphGenerator
         )
     }
 
@@ -38,10 +41,12 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let swiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
-        let depedencies = SwiftPackageManagerDependencies(
+        let dependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -53,15 +58,25 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, deploymentTargets in
+            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
+            XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(deploymentTargets, [.iOS("13.0", [.iphone])])
+            XCTAssertEqual(automaticProductType, [:])
+            return .test()
+        }
+
         // When
-        try subject.install(
+        let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: depedencies,
+            dependencies: dependencies,
+            platforms: [.iOS],
             shouldUpdate: false,
             swiftToolsVersion: nil
         )
 
         // Then
+        XCTAssertEqual(dependenciesGraph, .test())
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -102,10 +117,12 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
         let swiftToolsVersion = "5.3.0"
-        let depedencies = SwiftPackageManagerDependencies(
+        let dependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -114,18 +131,28 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, try self.temporaryPath())
-            XCTAssertEqual(version, swiftToolsVersion) // version should be eqaul to the version that has been specified
+            XCTAssertEqual(version, swiftToolsVersion) // version should be equal to the version that has been specified
+        }
+
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, deploymentTargets in
+            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
+            XCTAssertEqual(automaticProductType, [:])
+            XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(deploymentTargets, [.iOS("13.0", [.iphone])])
+            return .test()
         }
 
         // When
-        try subject.install(
+        let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: depedencies,
+            dependencies: dependencies,
+            platforms: [.iOS],
             shouldUpdate: false,
             swiftToolsVersion: swiftToolsVersion
         )
 
         // Then
+        XCTAssertEqual(dependenciesGraph, .test())
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -165,10 +192,12 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let swiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
-        let depedencies = SwiftPackageManagerDependencies(
+        let dependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
 
         swiftPackageManagerController.updateStub = { path in
@@ -180,15 +209,25 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, deploymentTargets in
+            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
+            XCTAssertEqual(automaticProductType, [:])
+            XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(deploymentTargets, [.iOS("13.0", [.iphone])])
+            return .test()
+        }
+
         // When
-        try subject.install(
+        let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: depedencies,
+            dependencies: dependencies,
+            platforms: [.iOS],
             shouldUpdate: true,
             swiftToolsVersion: nil
         )
 
         // Then
+        XCTAssertEqual(dependenciesGraph, .test())
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -230,7 +269,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             "Dependencies/Lockfiles/Package.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/SwiftPackageManager/Info.plist",
-            "Dependencies/OtherDepedenciesManager/bar.bar",
+            "Dependencies/OtherDependenciesManager/bar.bar",
         ])
 
         // When
@@ -241,7 +280,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             dependenciesDirectory,
             [
                 Constants.DependenciesDirectory.lockfilesDirectoryName,
-                "OtherDepedenciesManager",
+                "OtherDependenciesManager",
             ]
         )
         try XCTAssertDirectoryContentEqual(
