@@ -181,7 +181,7 @@ extension ProjectDescription.Target {
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
         let resources = ResourceFileElements.from(resources: target.resources, path: path)
-        let headers = ProjectDescription.Headers.from(path: path, publicHeadersPath: target.publicHeadersPath)
+        let headers = ProjectDescription.Headers.from(projectPath: folder, targetPath: path, publicHeadersRelativePath: target.publicHeadersPath)
         let dependencies = try ProjectDescription.TargetDependency.from(
             packageInfo: packageInfo,
             platform: platform,
@@ -358,11 +358,24 @@ extension ResourceFileElements {
 }
 
 extension ProjectDescription.Headers {
-    fileprivate static func from(path: AbsolutePath, publicHeadersPath: String?) -> Self? {
-        let headersPath = publicHeadersPath.map { path.appending(RelativePath($0)) } ?? path
-        let possibleHeaders = FileHandler.shared.filesAndDirectoriesContained(in: headersPath) ?? []
-        let headers = possibleHeaders.filter { $0.extension == "h" }
-        return headers.isEmpty ? nil : .init(public: .init(globs: headers.map { Path($0.pathString) }))
+    fileprivate static func from(projectPath: AbsolutePath, targetPath: AbsolutePath, publicHeadersRelativePath: String?) -> Self? {
+        let publicHeadersPath = targetPath.appending(RelativePath(publicHeadersRelativePath ?? "include"))
+        let allHeaders = FileHandler.shared.filesAndDirectoriesContained(in: projectPath)?.filter { $0.extension == "h" } ?? []
+        guard !allHeaders.isEmpty else { return nil }
+
+        let publicHeaders = allHeaders.filter { $0.parentDirectory == publicHeadersPath }
+        let privateHeaders = allHeaders
+            .filter { !publicHeaders.contains($0) }
+            .filter { $0.pathString.starts(with: targetPath.pathString) }
+        let projectHeaders = allHeaders
+            .filter { !publicHeaders.contains($0) }
+            .filter { !privateHeaders.contains($0) }
+
+        return .init(
+            public: publicHeaders.isEmpty ? nil : .init(globs: publicHeaders.map { Path($0.pathString) }),
+            private: privateHeaders.isEmpty ? nil : .init(globs: privateHeaders.map { Path($0.pathString) }),
+            project: projectHeaders.isEmpty ? nil : .init(globs: projectHeaders.map { Path($0.pathString) })
+        )
     }
 }
 
